@@ -17,8 +17,14 @@ unsigned compute_v2 (unsigned nb_iter);
 unsigned compute_v3 (unsigned nb_iter);
 unsigned compute_v4 (unsigned nb_iter);
 unsigned compute_v5 (unsigned nb_iter);
+unsigned compute_v6 (unsigned nb_iter);
+unsigned compute_v7 (unsigned nb_iter);
+unsigned compute_v8 (unsigned nb_iter);
 
 void_func_t first_touch [] = {
+  first_touch_v1,
+  first_touch_v1,
+  first_touch_v1,
   first_touch_v1,
   first_touch_v1,
   first_touch_v1,
@@ -33,6 +39,9 @@ int_func_t compute [] = {
   compute_v5,
   compute_v2,
   compute_v3,
+  compute_v6,
+  compute_v7,
+  compute_v8,
   compute_v4
 };
 
@@ -41,11 +50,17 @@ char *version_name [] = {
   "Séquentielle tuilée",
   "Séquentielle tuilée optimisée",
   "OpenMP",
-  "OpenMP zone",
+  "OpenMP tuilée",
+  "OpenMP tuilée optimisée",
+  "OpenMP task tuilée",
+  "OpenMP task tuilée optimisée",
   "OpenCL",
 };
 
 unsigned opencl_used [] = {
+  0,
+  0,
+  0,
   0,
   0,
   0,
@@ -70,28 +85,87 @@ if (j == 0 && i == 0)
 }
 else if (j == 0)
 {
+  if (i == DIM - 1)
+  {
+    if (cur_img(j, i-1) != 0)
+      S++;
+    if (cur_img(j+1, i-1) != 0)
+      S++;
+    if (cur_img(j+1, i) != 0)
+      S++;
+  }
+  else
+  {
+    if (cur_img(j, i-1) != 0)
+      S++;
+    if (cur_img(j, i+1) != 0)
+      S++;
+    if (cur_img(j+1, i-1) != 0)
+      S++;
+    if (cur_img(j+1, i) != 0)
+      S++;
+    if (cur_img(j+1, i+1) != 0)
+      S++;
+  }
+}
+else if (i == 0)
+{
+  if (j == DIM - 1)
+  {
+    if (cur_img(j-1, i) != 0)
+      S++;
+    if (cur_img(j-1, i+1) != 0)
+      S++;
+    if (cur_img(j, i+1) != 0)
+      S++;
+  }
+  else
+  {
+    if (cur_img(j-1, i) != 0)
+      S++;
+    if (cur_img(j-1, i+1) != 0)
+      S++;
+    if (cur_img(j, i+1) != 0)
+      S++;
+    if (cur_img(j+1, i) != 0)
+      S++;
+    if (cur_img(j+1, i+1) != 0)
+      S++;
+  }
+}
+else if (i == DIM - 1)
+{
+  if (cur_img(j-1, i) != 0)
+    S++;
+  if (cur_img(j-1, i-1) != 0)
+    S++;
   if (cur_img(j, i-1) != 0)
-    S++;
-  if (cur_img(j, i+1) != 0)
-    S++;
-  if (cur_img(j+1, i-1) != 0)
     S++;
   if (cur_img(j+1, i) != 0)
     S++;
-  if (cur_img(j+1, i+1) != 0)
+  if (cur_img(j+1, i-1) != 0)
     S++;
 }
-else if (i == 0)
+else if (j == DIM - 1)
 {
   if (cur_img(j-1, i) != 0)
     S++;
   if (cur_img(j-1, i+1) != 0)
     S++;
+  if (cur_img(j, i-1) != 0)
+    S++;
+  if (cur_img(j, i) != 0)
+    S++;
   if (cur_img(j, i+1) != 0)
     S++;
-  if (cur_img(j+1, i) != 0)
+}
+else if (i == DIM - 1 && j == DIM - 1)
+{
+  if (cur_img(j-1, i) != 0)
     S++;
-  if (cur_img(j+1, i+1) != 0)
+  if (cur_img(j-1, i-1) != 0)
+    S++;
+  if (cur_img(j, i-1) != 0)
     S++;
 }
 else
@@ -127,7 +201,7 @@ unsigned compute_v0 (unsigned nb_iter)
     {
       for (int j = 0; j < DIM; j++)
       {
-        unsigned S = count_v0(j,i);
+        unsigned S = count_v0(j, i);
         if (S == 3 && cur_img(j, i) == 0)
         {
           next_img(j, i) = YELLOW;
@@ -140,13 +214,13 @@ unsigned compute_v0 (unsigned nb_iter)
           stable = 0;
         }
         else
-          next_img(j,i)=cur_img(j,i);
+          next_img(j, i) = cur_img(j, i);
+      }
     }
-}
-if (stable)
-  return it;
-swap_images ();
-}
+    if (stable)
+      return it;
+    swap_images ();
+  }
   // retourne le nombre d'étapes nécessaires à la
   // stabilisation du calcul ou bien 0 si le calcul n'est pas
   // stabilisé au bout des nb_iter itérations
@@ -350,12 +424,11 @@ unsigned compute_v5(unsigned nb_iter)
 
 void first_touch_v1 ()
 {
-  int i,j ;
-
-#pragma omp parallel for
-  for(i=0; i<DIM ; i++) {
-    for(j=0; j < DIM ; j += 512)
-      next_img (i, j) = cur_img (i, j) = 0 ;
+  int i, j;
+  #pragma omp parallel for
+    for(i=0; i<DIM ; i++) {
+      for(j=0; j < DIM ; j += 512)
+        next_img (i, j) = cur_img (i, j) = 0 ;
   }
 }
 
@@ -366,11 +439,10 @@ unsigned compute_v2(unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it ++)
   {
     stable = 1;
-
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < DIM; i++)
     {
-     #pragma omp parallel for schedule(static)
+      #pragma omp parallel for schedule(static)
       for (int j = 0; j < DIM; j++)
       {
         unsigned S = count_v0(j,i);
@@ -387,22 +459,18 @@ unsigned compute_v2(unsigned nb_iter)
         }
         else
           next_img(j,i)=cur_img(j,i);
+      }
     }
-  }
-  if (stable)
-  return it;
+    if (stable)
+      return it;
     swap_images ();
   }
-
-
-
-
   return 0;
 }
 
 
 
-///////////////////////////// Version OpenMP optimisée
+///////////////////////////// Version OpenMP tuilée
 
 void first_touch_v2 ()
 {
@@ -412,9 +480,160 @@ void first_touch_v2 ()
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
 unsigned compute_v3(unsigned nb_iter)
 {
+  int x, y;
+  unsigned short stable = 0;
+  for (unsigned it = 1; it <= nb_iter; it ++)
+  {
+    stable = 1;
+    #pragma omp parallel for private(y) collapse(2)
+    for (x = 0; x < DIM; x += TILE_SIZE)
+    {
+      for (y = 0; y < DIM; y += TILE_SIZE)
+      {
+        for (int xloc = x; xloc < x + TILE_SIZE && xloc < DIM; xloc++)
+        {
+          for (int yloc = y; yloc < y + TILE_SIZE && yloc < DIM; yloc++)
+          {
+            unsigned S = count_v0(yloc, xloc);
+            int ci = cur_img(yloc, xloc);
+            if (S == 3 && ci == 0)
+            {
+              next_img(yloc, xloc) = YELLOW;
+              stable = 0;
+            }
+            else
+            if (ci != 0 && !(S == 2 || S == 3) )
+            {
+              next_img(yloc, xloc) = 0;
+              stable = 0;
+            }
+            else
+            next_img(yloc, xloc) = ci;
+          }
+        }
+      }
+    }
+    if (stable)
+      return it;
+    swap_images ();
+  }
   return 0; // on ne s'arrête jamais
 }
 
+///////////////////////////// Version OpenMP tuilée optimisée
+
+unsigned compute_v6 (unsigned nb_iter)
+{
+  int x, y;
+  unsigned short stable = 0;
+  unsigned short **stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
+  unsigned short **next_stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
+  init_stableloc(stableloc);
+  init_stableloc(next_stableloc);
+  for (unsigned it = 1; it <= nb_iter; it ++)
+  {
+    stable = 1;
+    #pragma omp parallel for private(y) collapse(2)
+    for (x = 0; x < TRANCHE; x++)
+    {
+      for (y = 0; y < TRANCHE; y++)
+      {
+        stableloc[x][y] = 1;
+        if (next_stableloc[x][y] == 0)
+        {
+          for (int xloc = x * TILE_SIZE; xloc < (x+1) * TILE_SIZE && xloc < DIM; xloc++)
+          {
+            for (int yloc = y * TILE_SIZE; yloc < (y+1) * TILE_SIZE && yloc < DIM; yloc++)
+            {
+              unsigned S = count_v0(yloc, xloc);
+              int ci = cur_img(yloc, xloc);
+              if (S == 3 && ci == 0)
+              {
+                next_img(yloc, xloc) = YELLOW;
+                stable = 0;
+                stableloc[x][y] = 0;
+              }
+              else
+              if (ci != 0 && !(S == 2 || S == 3) )
+              {
+                next_img(yloc, xloc) = 0;
+                stable = 0;
+                stableloc[x][y] = 0;
+              }
+              else
+              next_img(yloc, xloc) = ci;
+            }
+          }
+        }
+      }
+    }
+    update_stableloc(stableloc, next_stableloc);
+    if (stable)
+    {
+      free_stableloc(stableloc);
+      free_stableloc(next_stableloc);
+      return it;
+    }
+    swap_images ();
+  }
+  free_stableloc(stableloc);
+  free_stableloc(next_stableloc);
+  return 0;
+}
+///////////////////////////// Version OpenMP task tuilée
+
+unsigned compute_v7 (unsigned nb_iter)
+{
+  int x, y;
+  unsigned short stable = 0;
+  for (unsigned it = 1; it <= nb_iter; it ++)
+  {
+    stable = 1;
+    #pragma omp parallel
+    {
+    #pragma omp single
+    for (x = 0; x < DIM; x += TILE_SIZE)
+    {
+      for (y = 0; y < DIM; y += TILE_SIZE)
+      {
+        #pragma omp task firstprivate(x, y)
+        for (int xloc = x; xloc < x + TILE_SIZE && xloc < DIM; xloc++)
+        {
+          for (int yloc = y; yloc < y + TILE_SIZE && yloc < DIM; yloc++)
+          {
+            unsigned S = count_v0(yloc, xloc);
+            int ci = cur_img(yloc, xloc);
+            if (S == 3 && ci == 0)
+            {
+              next_img(yloc, xloc) = YELLOW;
+              stable = 0;
+            }
+            else
+            if (ci != 0 && !(S == 2 || S == 3) )
+            {
+              next_img(yloc, xloc) = 0;
+              stable = 0;
+            }
+            else
+            next_img(yloc, xloc) = ci;
+          }
+        }
+      }
+    }
+  }
+    if (stable)
+      return it;
+    swap_images ();
+  }
+  return 0;
+}
+
+///////////////////////////// Version OpenMP task tuilée optimisée
+
+unsigned compute_v8 (unsigned nb_iter)
+{
+  return 0;
+}
 
 ///////////////////////////// Version OpenCL
 
