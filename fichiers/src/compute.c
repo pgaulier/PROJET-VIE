@@ -36,13 +36,13 @@ void_func_t first_touch [] = {
 int_func_t compute [] = {
   compute_v0,
   compute_v1,
-  compute_v5,
   compute_v2,
   compute_v3,
+  compute_v4,
+  compute_v5,
   compute_v6,
   compute_v7,
-  compute_v8,
-  compute_v4
+  compute_v8
 };
 
 char *version_name [] = {
@@ -363,7 +363,7 @@ void update_stableloc(unsigned short **s, unsigned short **ns)
   }
 }
 
-unsigned compute_v5(unsigned nb_iter)
+unsigned compute_v2(unsigned nb_iter)
 {
   unsigned short stable = 0;
   unsigned short **stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
@@ -433,7 +433,7 @@ void first_touch_v1 ()
 }
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
-unsigned compute_v2(unsigned nb_iter)
+unsigned compute_v3(unsigned nb_iter)
 {
   unsigned short stable = 0;
   for (unsigned it = 1; it <= nb_iter; it ++)
@@ -442,7 +442,7 @@ unsigned compute_v2(unsigned nb_iter)
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < DIM; i++)
     {
-      #pragma omp parallel for schedule(static)
+     #pragma omp parallel for schedule(static)
       for (int j = 0; j < DIM; j++)
       {
         unsigned S = count_v0(j,i);
@@ -478,7 +478,7 @@ void first_touch_v2 ()
 }
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
-unsigned compute_v3(unsigned nb_iter)
+unsigned compute_v4(unsigned nb_iter)
 {
   int x, y;
   unsigned short stable = 0;
@@ -522,7 +522,7 @@ unsigned compute_v3(unsigned nb_iter)
 
 ///////////////////////////// Version OpenMP tuilée optimisée
 
-unsigned compute_v6 (unsigned nb_iter)
+unsigned compute_v5 (unsigned nb_iter)
 {
   int x, y;
   unsigned short stable = 0;
@@ -580,9 +580,10 @@ unsigned compute_v6 (unsigned nb_iter)
   free_stableloc(next_stableloc);
   return 0;
 }
+
 ///////////////////////////// Version OpenMP task tuilée
 
-unsigned compute_v7 (unsigned nb_iter)
+unsigned compute_v6 (unsigned nb_iter)
 {
   int x, y;
   unsigned short stable = 0;
@@ -596,7 +597,7 @@ unsigned compute_v7 (unsigned nb_iter)
     {
       for (y = 0; y < DIM; y += TILE_SIZE)
       {
-        #pragma omp task firstprivate(x, y)
+        #pragma omp task// firstprivate(x, y)
         for (int xloc = x; xloc < x + TILE_SIZE && xloc < DIM; xloc++)
         {
           for (int yloc = y; yloc < y + TILE_SIZE && yloc < DIM; yloc++)
@@ -630,15 +631,78 @@ unsigned compute_v7 (unsigned nb_iter)
 
 ///////////////////////////// Version OpenMP task tuilée optimisée
 
-unsigned compute_v8 (unsigned nb_iter)
+unsigned compute_v7 (unsigned nb_iter)
 {
+  int x, y;
+  unsigned short stable = 0;
+  unsigned short **stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
+  unsigned short **next_stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
+  init_stableloc(stableloc);
+  init_stableloc(next_stableloc);
+  for (unsigned it = 1; it <= nb_iter; it ++)
+  {
+    stable = 1;
+    #pragma omp parallel
+    {
+      #pragma omp single
+      for (x = 0; x < TRANCHE; x++)
+      {
+        for (y = 0; y < TRANCHE; y++)
+        {
+          #pragma omp task firstprivate(x) firstprivate(y)
+          //  printf("%d\n", omp_get_thread_num());
+          stableloc[x][y] = 1;
+          if (next_stableloc[x][y] == 0)
+          {
+            //  #pragma omp task //firstprivate(x,y)
+            for (int xloc = x * TILE_SIZE; xloc < (x+1) * TILE_SIZE && xloc < DIM; xloc++)
+            {
+              for (int yloc = y * TILE_SIZE; yloc < (y+1) * TILE_SIZE && yloc < DIM; yloc++)
+              {
+                unsigned S = count_v0(yloc, xloc);
+                int ci = cur_img(yloc, xloc);
+                if (S == 3 && ci == 0)
+                {
+                  next_img(yloc, xloc) = YELLOW;
+                  stable = 0;
+                  stableloc[x][y] = 0;
+                }
+                else
+                if (ci != 0 && !(S == 2 || S == 3) )
+                {
+                  next_img(yloc, xloc) = 0;
+                  stable = 0;
+                  stableloc[x][y] = 0;
+                }
+                else
+                next_img(yloc, xloc) = ci;
+              }
+//#pragma omp taskwait
+          //  #pragma omp taskwait
+            }
+          }
+        }
+      }
+    }
+    update_stableloc(stableloc, next_stableloc);
+    if (stable)
+    {
+      free_stableloc(stableloc);
+      free_stableloc(next_stableloc);
+      return it;
+    }
+    swap_images ();
+  }
+  free_stableloc(stableloc);
+  free_stableloc(next_stableloc);
+
   return 0;
 }
 
 ///////////////////////////// Version OpenCL
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
-unsigned compute_v4 (unsigned nb_iter)
+unsigned compute_v8 (unsigned nb_iter)
 {
   return ocl_compute (nb_iter);
 }
