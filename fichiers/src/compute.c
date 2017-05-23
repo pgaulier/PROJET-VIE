@@ -20,8 +20,10 @@ unsigned compute_v5 (unsigned nb_iter);
 unsigned compute_v6 (unsigned nb_iter);
 unsigned compute_v7 (unsigned nb_iter);
 unsigned compute_v8 (unsigned nb_iter);
+unsigned compute_v9 (unsigned nb_iter);
 
 void_func_t first_touch [] = {
+  first_touch_v1,
   first_touch_v1,
   first_touch_v1,
   first_touch_v1,
@@ -42,7 +44,8 @@ int_func_t compute [] = {
   compute_v5,
   compute_v6,
   compute_v7,
-  compute_v8
+  compute_v8,
+  compute_v9
 };
 
 char *version_name [] = {
@@ -55,6 +58,7 @@ char *version_name [] = {
   "OpenMP task tuilée",
   "OpenMP task tuilée optimisée",
   "OpenCL",
+  "OpenCL optimisée"
 };
 
 unsigned opencl_used [] = {
@@ -67,6 +71,7 @@ unsigned opencl_used [] = {
   0,
   0,
   1,
+  1
 };
 
 ///////////////////////////// Version séquentielle simple
@@ -649,7 +654,7 @@ unsigned compute_v7 (unsigned nb_iter)
       {
         for (y = 0; y < TRANCHE; y++)
         {
-          #pragma omp task firstprivate(x) firstprivate(y)
+          #pragma omp task firstprivate(x,y)
           //  printf("%d\n", omp_get_thread_num());
           stableloc[x][y] = 1;
           if (next_stableloc[x][y] == 0)
@@ -705,4 +710,11 @@ unsigned compute_v7 (unsigned nb_iter)
 unsigned compute_v8 (unsigned nb_iter)
 {
   return ocl_compute (nb_iter);
+}
+
+///////////////////////////// Version OpenCL optimisée
+
+unsigned compute_v9 (unsigned nb_iter)
+{
+  return ocl_compute(nb_iter);
 }
