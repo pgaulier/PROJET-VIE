@@ -10,6 +10,7 @@ unsigned version = 0;
 
 void first_touch_v1 (void);
 void first_touch_v2 (void);
+void init_stableloc();
 
 unsigned compute_v0 (unsigned nb_iter);
 unsigned compute_v1 (unsigned nb_iter);
@@ -22,6 +23,9 @@ unsigned compute_v7 (unsigned nb_iter);
 unsigned compute_v8 (unsigned nb_iter);
 unsigned compute_v9 (unsigned nb_iter);
 
+unsigned short **stableloc;
+unsigned short **next_stableloc;
+
 void_func_t first_touch [] = {
   first_touch_v1,
   first_touch_v1,
@@ -33,6 +37,19 @@ void_func_t first_touch [] = {
   first_touch_v1,
   first_touch_v1,
   first_touch_v1
+};
+
+void_func_t init [] = {
+  NULL,
+  NULL,
+  init_stableloc,
+  NULL,
+  NULL,
+  init_stableloc,
+  NULL,
+  init_stableloc,
+  NULL,
+  NULL
 };
 
 int_func_t compute [] = {
@@ -73,6 +90,8 @@ unsigned opencl_used [] = {
   1,
   1
 };
+
+
 
 ///////////////////////////// Version séquentielle simple
 
@@ -290,14 +309,18 @@ void free_stableloc(unsigned short **s)
   free(s);
 }
 
-void init_stableloc(unsigned short **s)
+void init_stableloc()
 {
+  stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
+  next_stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
   for (int i = 0; i < TRANCHE; i++)
   {
-    s[i] = malloc(sizeof(unsigned short) * TRANCHE);
+    stableloc[i] = malloc(sizeof(unsigned short) * TRANCHE);
+    next_stableloc[i] = malloc(sizeof(unsigned short) * TRANCHE);
     for (int j = 0; j < TRANCHE; j++)
     {
-      s[i][j] = 0;
+      stableloc[i][j] = 0;
+      next_stableloc[i][j] = 0;
     }
   }
 }
@@ -371,10 +394,6 @@ void update_stableloc(unsigned short **s, unsigned short **ns)
 unsigned compute_v2(unsigned nb_iter)
 {
   unsigned short stable = 0;
-  unsigned short **stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
-  unsigned short **next_stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
-  init_stableloc(stableloc);
-  init_stableloc(next_stableloc);
   for (unsigned it = 1; it <= nb_iter; it ++)
   {
     stable = 1;
@@ -414,14 +433,10 @@ unsigned compute_v2(unsigned nb_iter)
     update_stableloc(stableloc, next_stableloc);
     if (stable)
     {
-      free_stableloc(stableloc);
-      free_stableloc(next_stableloc);
       return it;
     }
     swap_images ();
   }
-  free_stableloc(stableloc);
-  free_stableloc(next_stableloc);
   return 0;
 }
 
@@ -531,10 +546,6 @@ unsigned compute_v5 (unsigned nb_iter)
 {
   int x, y;
   unsigned short stable = 0;
-  unsigned short **stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
-  unsigned short **next_stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
-  init_stableloc(stableloc);
-  init_stableloc(next_stableloc);
   for (unsigned it = 1; it <= nb_iter; it ++)
   {
     stable = 1;
@@ -575,14 +586,10 @@ unsigned compute_v5 (unsigned nb_iter)
     update_stableloc(stableloc, next_stableloc);
     if (stable)
     {
-      free_stableloc(stableloc);
-      free_stableloc(next_stableloc);
       return it;
     }
     swap_images ();
   }
-  free_stableloc(stableloc);
-  free_stableloc(next_stableloc);
   return 0;
 }
 
@@ -602,7 +609,7 @@ unsigned compute_v6 (unsigned nb_iter)
     {
       for (y = 0; y < DIM; y += TILE_SIZE)
       {
-        #pragma omp task// firstprivate(x, y)
+        #pragma omp task firstprivate(x, y)
         for (int xloc = x; xloc < x + TILE_SIZE && xloc < DIM; xloc++)
         {
           for (int yloc = y; yloc < y + TILE_SIZE && yloc < DIM; yloc++)
@@ -640,10 +647,6 @@ unsigned compute_v7 (unsigned nb_iter)
 {
   int x, y;
   unsigned short stable = 0;
-  unsigned short **stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
-  unsigned short **next_stableloc = malloc(sizeof(unsigned short) * TRANCHE * TRANCHE);
-  init_stableloc(stableloc);
-  init_stableloc(next_stableloc);
   for (unsigned it = 1; it <= nb_iter; it ++)
   {
     stable = 1;
@@ -655,11 +658,9 @@ unsigned compute_v7 (unsigned nb_iter)
         for (y = 0; y < TRANCHE; y++)
         {
           #pragma omp task firstprivate(x,y)
-          //  printf("%d\n", omp_get_thread_num());
           stableloc[x][y] = 1;
           if (next_stableloc[x][y] == 0)
           {
-            //  #pragma omp task //firstprivate(x,y)
             for (int xloc = x * TILE_SIZE; xloc < (x+1) * TILE_SIZE && xloc < DIM; xloc++)
             {
               for (int yloc = y * TILE_SIZE; yloc < (y+1) * TILE_SIZE && yloc < DIM; yloc++)
@@ -682,8 +683,6 @@ unsigned compute_v7 (unsigned nb_iter)
                 else
                 next_img(yloc, xloc) = ci;
               }
-//#pragma omp taskwait
-          //  #pragma omp taskwait
             }
           }
         }
@@ -692,14 +691,10 @@ unsigned compute_v7 (unsigned nb_iter)
     update_stableloc(stableloc, next_stableloc);
     if (stable)
     {
-      free_stableloc(stableloc);
-      free_stableloc(next_stableloc);
       return it;
     }
     swap_images ();
   }
-  free_stableloc(stableloc);
-  free_stableloc(next_stableloc);
 
   return 0;
 }
