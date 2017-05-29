@@ -1,4 +1,3 @@
-
 #include "compute.h"
 #include "graphics.h"
 #include "debug.h"
@@ -300,13 +299,16 @@ unsigned compute_v1(unsigned nb_iter)
 
 #define TRANCHE DIM / TILE_SIZE
 
-void free_stableloc(unsigned short **s)
+void print_tile(unsigned short **s)
 {
   for (int i = 0; i < TRANCHE; i++)
   {
-    free(s[i]);
+    for (int j = 0; j < TRANCHE; j++)
+    {
+      printf("%d", s[i][j]);
+    }
+    printf("\n");
   }
-  free(s);
 }
 
 void init_stableloc()
@@ -325,67 +327,26 @@ void init_stableloc()
   }
 }
 
-unsigned short check_for_stable(int x, int y, unsigned short **s)
-{
-  int i, j;
-  if (x == 0 && y == 0)
-  {
-    if (s[0][1] == 0 || s[1][0] == 0 || s[1][1])
-      return 0;
-  }
-  else if (x == 0)
-  {
-    for (i = 0; i <= 1; i++)
-    {
-      for (j = -1; j <= 1; j++)
-      {
-        if ((s[x+i][y+j] == 0) && (i != 0 || j != 0))
-          return 0;
-      }
-    }
-  }
-  else if (y == 0)
-  {
-    for (i = -1; i <= 1; i++)
-    {
-      for (j = 0; j <= 1; j++)
-      {
-        if ((s[x+i][y+j] == 0) && (i != 0 || j != 0))
-          return 0;
-      }
-    }
-  }
-  else
-  for (i = -1; i <= 1; i++)
-  {
-    for (j = -1; j <= 1; j++)
-    {
-      if ((s[x+i][y+j] == 0) && (i != 0 || j != 0))
-        return 0;
-    }
-  }
-  return 1;
-}
 
 void update_stableloc(unsigned short **s, unsigned short **ns)
 {
-  for (int x = 1; x < TRANCHE-1; x++)
+  for (int x = 0; x < TRANCHE; x++)
   {
-    for (int y = 1; y < TRANCHE-1; y++)
+    for (int y = 0; y < TRANCHE; y++)
     {
-      unsigned short b = 0;
+      ns[x][y] = 1;
       for (int i = -1; i <= 1; i++)
       {
         for (int j = -1; j <= 1; j++)
         {
-          if (s[x+i][y+j] == 0)
+          if (x+i >= 0 && x+i < TRANCHE && y+j >=0 && y+j < TRANCHE)
           {
-            ns[x][y] = 0;
-            b = 1;
+            if (s[x+i][y+j] == 0)
+            {
+              ns[x][y] = 0;
+            }
           }
         }
-        if (!b)
-          ns[x][y] = 1;
       }
     }
   }
@@ -542,6 +503,32 @@ unsigned compute_v4(unsigned nb_iter)
 
 ///////////////////////////// Version OpenMP tuilée optimisée
 
+void update_stableloc_omp(unsigned short **s, unsigned short **ns)
+{
+  int x, y;
+   //private(y) collapse(2)
+  for (x = 1; x < TRANCHE-1; x++)
+  {
+    for (y = 1; y < TRANCHE-1; y++)
+    {
+      ns[x][y] = 1;
+      for (int i = -1; i <= 1; i++)
+      {
+        for (int j = -1; j <= 1; j++)
+        {
+          if (x+i >= 0 && x+i < TRANCHE && y+j >= 0 && y+j < TRANCHE)
+          {
+            if (s[x+i][y+j] == 0)
+            {
+              ns[x][y] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 unsigned compute_v5 (unsigned nb_iter)
 {
   int x, y;
@@ -583,7 +570,7 @@ unsigned compute_v5 (unsigned nb_iter)
         }
       }
     }
-    update_stableloc(stableloc, next_stableloc);
+    update_stableloc_omp(stableloc, next_stableloc);
     if (stable)
     {
       return it;
@@ -646,49 +633,59 @@ unsigned compute_v6 (unsigned nb_iter)
 unsigned compute_v7 (unsigned nb_iter)
 {
   int x, y;
+  int count = 0;
   unsigned short stable = 0;
   for (unsigned it = 1; it <= nb_iter; it ++)
   {
     stable = 1;
-    #pragma omp parallel
+    #pragma omp parallel shared(stable)
+    #pragma omp single nowait
     {
-      #pragma omp single
+      count = 0;
+
       for (x = 0; x < TRANCHE; x++)
       {
         for (y = 0; y < TRANCHE; y++)
         {
           #pragma omp task firstprivate(x,y)
-          stableloc[x][y] = 1;
-          if (next_stableloc[x][y] == 0)
           {
-            for (int xloc = x * TILE_SIZE; xloc < (x+1) * TILE_SIZE && xloc < DIM; xloc++)
+            stableloc[x][y] = 1;
+            if (next_stableloc[x][y] == 0)
             {
-              for (int yloc = y * TILE_SIZE; yloc < (y+1) * TILE_SIZE && yloc < DIM; yloc++)
+              count++;
+              for (int xloc = x * TILE_SIZE; xloc < (x+1) * TILE_SIZE && xloc < DIM; xloc++)
               {
-                unsigned S = count_v0(yloc, xloc);
-                int ci = cur_img(yloc, xloc);
-                if (S == 3 && ci == 0)
+                for (int yloc = y * TILE_SIZE; yloc < (y+1) * TILE_SIZE && yloc < DIM; yloc++)
                 {
-                  next_img(yloc, xloc) = YELLOW;
-                  stable = 0;
-                  stableloc[x][y] = 0;
+                  unsigned S = count_v0(yloc, xloc);
+                  int ci = cur_img(yloc, xloc);
+                  if (S == 3 && ci == 0)
+                  {
+                    next_img(yloc, xloc) = YELLOW;
+                    stable = 0;
+                    stableloc[x][y] = 0;
+                  }
+                  else
+                  if (ci != 0 && !(S == 2 || S == 3) )
+                  {
+                    next_img(yloc, xloc) = 0;
+                    stable = 0;
+                    stableloc[x][y] = 0;
+                  }
+                  else
+                  next_img(yloc, xloc) = ci;
                 }
-                else
-                if (ci != 0 && !(S == 2 || S == 3) )
-                {
-                  next_img(yloc, xloc) = 0;
-                  stable = 0;
-                  stableloc[x][y] = 0;
-                }
-                else
-                next_img(yloc, xloc) = ci;
               }
             }
           }
         }
+
       }
+      //printf("%d\n", count);
+      //print_tile(next_stableloc);
+      update_stableloc_omp(stableloc, next_stableloc);
     }
-    update_stableloc(stableloc, next_stableloc);
+
     if (stable)
     {
       return it;
