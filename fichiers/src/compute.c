@@ -423,7 +423,7 @@ unsigned compute_v3(unsigned nb_iter)
     #pragma omp parallel for schedule(static)
     for (int i = 0; i < DIM; i++)
     {
-     #pragma omp parallel for schedule(static)
+      #pragma omp parallel for schedule(static)
       for (int j = 0; j < DIM; j++)
       {
         unsigned S = count_v0(j,i);
@@ -503,32 +503,6 @@ unsigned compute_v4(unsigned nb_iter)
 
 ///////////////////////////// Version OpenMP tuilée optimisée
 
-void update_stableloc_omp(unsigned short **s, unsigned short **ns)
-{
-  int x, y;
-   //private(y) collapse(2)
-  for (x = 1; x < TRANCHE-1; x++)
-  {
-    for (y = 1; y < TRANCHE-1; y++)
-    {
-      ns[x][y] = 1;
-      for (int i = -1; i <= 1; i++)
-      {
-        for (int j = -1; j <= 1; j++)
-        {
-          if (x+i >= 0 && x+i < TRANCHE && y+j >= 0 && y+j < TRANCHE)
-          {
-            if (s[x+i][y+j] == 0)
-            {
-              ns[x][y] = 0;
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
 unsigned compute_v5 (unsigned nb_iter)
 {
   int x, y;
@@ -570,7 +544,7 @@ unsigned compute_v5 (unsigned nb_iter)
         }
       }
     }
-    update_stableloc_omp(stableloc, next_stableloc);
+    update_stableloc(stableloc, next_stableloc);
     if (stable)
     {
       return it;
@@ -683,7 +657,7 @@ unsigned compute_v7 (unsigned nb_iter)
       }
       //printf("%d\n", count);
       //print_tile(next_stableloc);
-      update_stableloc_omp(stableloc, next_stableloc);
+      update_stableloc(stableloc, next_stableloc);
     }
 
     if (stable)
@@ -701,6 +675,7 @@ unsigned compute_v7 (unsigned nb_iter)
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
 unsigned compute_v8 (unsigned nb_iter)
 {
+ //char *kernel_name="gol_naif";
   return ocl_compute (nb_iter);
 }
 
@@ -708,5 +683,6 @@ unsigned compute_v8 (unsigned nb_iter)
 
 unsigned compute_v9 (unsigned nb_iter)
 {
+  //char *kernel_name="gol";
   return ocl_compute(nb_iter);
 }

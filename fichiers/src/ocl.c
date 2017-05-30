@@ -35,7 +35,7 @@ unsigned TILEX = 16;
 unsigned TILEY = 16;
 unsigned SIZE = 0;
 
-static char *kernel_name = "gol_naif";
+char *kernel_name="gol_naif";
 
 cl_int err;
 cl_context context;
@@ -300,7 +300,7 @@ void ocl_send_image (unsigned *image)
   PRINT_DEBUG ('o', "Initial image sent to device.\n");
 }
 
-unsigned ocl_compute (unsigned nb_iter)
+unsigned ocl_compute (unsigned nb_iter)//, char * kernel_name)
 {
   size_t global[2] = { SIZE, SIZE };  // global domain size for our calculation
   size_t local[2]  = { TILEX, TILEY };  // local domain size for our calculation
